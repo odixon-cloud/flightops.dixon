@@ -38,6 +38,8 @@
           <article class="metric-card"><div class="metric-heading"><span>Current Month Revenue</span><span class="metric-signal metric-signal--positive">IN</span></div><strong class="metric-value" id="month-revenue">$0.00</strong><p>Income posted this period</p></article>
           <article class="metric-card"><div class="metric-heading"><span>Current Month Expenses</span><span class="metric-signal metric-signal--negative">OUT</span></div><strong class="metric-value" id="month-expenses">$0.00</strong><p>Expenses posted this period</p></article>
           <article class="metric-card" id="profit-card"><div class="metric-heading"><span>Current Month Profit/Loss</span><span class="metric-code">NET</span></div><strong class="metric-value" id="month-profit">$0.00</strong><p id="month-margin">No revenue posted</p></article>
+          <article class="metric-card" id="recent-profit-card"><div class="metric-heading"><span>Recent Month Profit/Loss</span><span class="metric-code">CLOSED</span></div><strong class="metric-value" id="recent-month-profit">—</strong><p id="recent-month-label">No months closed</p></article>
+          <article class="metric-card"><div class="metric-heading"><span>Total Months Closed</span><span class="metric-code">HISTORY</span></div><strong class="metric-value" id="total-months-closed">0</strong><p>Permanent monthly reports</p></article>
         </div>
 
         <section class="panel" aria-labelledby="activity-title">
@@ -56,7 +58,7 @@
           <div class="ledger-summary"><div class="ledger-filter"><label for="ledger-filter">Display</label><select id="ledger-filter"><option value="current">Current Month</option><option value="all">All Transactions</option><option value="archived">Archived Months</option></select></div><span><strong id="ledger-count">0</strong> transactions shown</span><span>Company cash <strong id="ledger-balance">$0.00</strong></span></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="number-cell">Amount</th><th class="number-cell">Balance</th><th class="action-cell">Actions</th></tr></thead>
+              <thead><tr><th>Date</th><th>Accounting Month</th><th>Description</th><th>Category</th><th>Type</th><th class="number-cell">Amount</th><th class="number-cell">Balance</th><th class="action-cell">Actions</th></tr></thead>
               <tbody id="ledger-table-body"></tbody>
             </table>
           </div>
@@ -92,6 +94,7 @@
     <form id="transaction-form">
       <div class="modal-header"><div><p class="eyebrow">Ledger entry</p><h2 id="transaction-dialog-title">Add Transaction</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Close dialog">×</button></div>
       <input type="hidden" id="transaction-id">
+      <p class="posting-period">Accounting month <strong id="transaction-accounting-month">January 2026</strong></p>
       <div class="type-selector" aria-label="Transaction type">
         <label><input type="radio" name="transaction-type" value="income" checked><span>Income</span></label>
         <label><input type="radio" name="transaction-type" value="expense"><span>Expense</span></label>
@@ -107,6 +110,18 @@
       </div>
       <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Cancel</button><button class="button button--primary" type="submit">Save Transaction</button></div>
     </form>
+  </dialog>
+
+  <dialog class="modal report-modal" id="report-dialog">
+    <div class="report-dialog-content">
+      <div class="modal-header"><div><p class="eyebrow">Closed period detail</p><h2 id="report-dialog-title">Monthly Report</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Close report">×</button></div>
+      <div class="report-detail-grid">
+        <section><h3>Revenue by Category</h3><div class="breakdown-list" id="report-revenue-breakdown"></div></section>
+        <section><h3>Expenses by Category</h3><div class="breakdown-list" id="report-expense-breakdown"></div></section>
+      </div>
+      <div class="report-net"><span>Net Profit/Loss</span><strong id="report-net-profit">$0.00</strong></div>
+      <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Close Report</button></div>
+    </div>
   </dialog>
 
   <div class="toast-region" id="toast-region" aria-live="polite"></div>

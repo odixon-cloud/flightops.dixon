@@ -4,7 +4,7 @@ const STORAGE_KEY = "flightops-pro-accounting-v2";
 const DEFAULT_STATE = {
   companyName: "Dixon Air Cargo",
   startingCapital: 2500000,
-  activeMonth: currentMonthKey(),
+  activeMonth: "2026-01",
   transactions: [],
   monthlyHistory: []
 };
@@ -30,7 +30,8 @@ const dom = {
   transactionForm: document.querySelector("#transaction-form"),
   ledgerBody: document.querySelector("#ledger-table-body"),
   reportsBody: document.querySelector("#reports-table-body"),
-  settingsForm: document.querySelector("#settings-form")
+  settingsForm: document.querySelector("#settings-form"),
+  reportDialog: document.querySelector("#report-dialog")
 };
 
 function localDateString(date = new Date()) {
@@ -83,7 +84,8 @@ function normalizeTransaction(transaction) {
   return {
     ...transaction,
     category: categoryAliases[transaction.category] || transaction.category,
-    notes: typeof transaction.notes === "string" ? transaction.notes : ""
+    notes: typeof transaction.notes === "string" ? transaction.notes : "",
+    accountingMonth: /^\d{4}-\d{2}$/.test(transaction.accountingMonth) ? transaction.accountingMonth : transaction.date.slice(0, 7)
   };
 }
 
@@ -91,16 +93,36 @@ function isValidMonthlyRecord(record) {
   return record && /^\d{4}-\d{2}$/.test(record.month) && Number.isFinite(Number(record.revenue)) && Number.isFinite(Number(record.expenses)) && Number.isFinite(Number(record.profit));
 }
 
+function calculateCategoryBreakdown(transactions, type) {
+  return transactions.filter((transaction) => transaction.type === type).reduce((breakdown, transaction) => {
+    breakdown[transaction.category] = (breakdown[transaction.category] || 0) + Number(transaction.amount);
+    return breakdown;
+  }, {});
+}
+
+function normalizeMonthlyRecord(record, transactions) {
+  const monthTransactions = transactions.filter((transaction) => transaction.accountingMonth === record.month);
+  return {
+    ...record,
+    revenue: Number(record.revenue),
+    expenses: Number(record.expenses),
+    profit: Number(record.profit),
+    revenueByCategory: record.revenueByCategory && typeof record.revenueByCategory === "object" ? record.revenueByCategory : calculateCategoryBreakdown(monthTransactions, "income"),
+    expenseByCategory: record.expenseByCategory && typeof record.expenseByCategory === "object" ? record.expenseByCategory : calculateCategoryBreakdown(monthTransactions, "expense")
+  };
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved || !Array.isArray(saved.transactions)) return structuredClone(DEFAULT_STATE);
+    const transactions = saved.transactions.filter(isValidTransaction).map(normalizeTransaction);
     return {
       companyName: typeof saved.companyName === "string" && saved.companyName.trim() ? saved.companyName.trim() : DEFAULT_STATE.companyName,
       startingCapital: Number(saved.startingCapital) >= 0 ? Number(saved.startingCapital) : DEFAULT_STATE.startingCapital,
-      activeMonth: /^\d{4}-\d{2}$/.test(saved.activeMonth) ? saved.activeMonth : currentMonthKey(),
-      transactions: saved.transactions.filter(isValidTransaction).map(normalizeTransaction),
-      monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord) : []
+      activeMonth: /^\d{4}-\d{2}$/.test(saved.activeMonth) ? saved.activeMonth : DEFAULT_STATE.activeMonth,
+      transactions,
+      monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord).map((record) => normalizeMonthlyRecord(record, transactions)) : []
     };
   } catch {
     return structuredClone(DEFAULT_STATE);
@@ -163,7 +185,7 @@ function showPage(pageName, updateHash = true) {
 
 function renderDashboard() {
   const monthKey = state.activeMonth;
-  const monthlyTransactions = state.transactions.filter((transaction) => transaction.date.startsWith(monthKey));
+  const monthlyTransactions = state.transactions.filter((transaction) => transaction.accountingMonth === monthKey);
   const monthly = calculateTotals(monthlyTransactions);
   const lifetime = calculateTotals(state.transactions);
   const cash = state.startingCapital + lifetime.profit;
@@ -179,6 +201,13 @@ function renderDashboard() {
   document.querySelector("#profit-card").classList.toggle("positive", monthly.profit > 0);
   document.querySelector("#profit-card").classList.toggle("negative", monthly.profit < 0);
 
+  const mostRecentMonth = [...state.monthlyHistory].sort((a, b) => b.month.localeCompare(a.month))[0];
+  document.querySelector("#recent-month-profit").textContent = mostRecentMonth ? formatCurrency(mostRecentMonth.profit) : "—";
+  document.querySelector("#recent-month-label").textContent = mostRecentMonth ? formatMonth(mostRecentMonth.month) : "No months closed";
+  document.querySelector("#total-months-closed").textContent = state.monthlyHistory.length;
+  document.querySelector("#recent-profit-card").classList.toggle("positive", Boolean(mostRecentMonth && mostRecentMonth.profit > 0));
+  document.querySelector("#recent-profit-card").classList.toggle("negative", Boolean(mostRecentMonth && mostRecentMonth.profit < 0));
+
   const recent = sortNewestFirst(state.transactions).slice(0, 5);
   document.querySelector("#recent-transactions").innerHTML = recent.length ? recent.map((transaction) => {
     const date = parseLocalDate(transaction.date);
@@ -190,8 +219,8 @@ function renderLedger() {
   const filter = document.querySelector("#ledger-filter").value;
   const archivedMonths = new Set(state.monthlyHistory.map((record) => record.month));
   const filteredTransactions = state.transactions.filter((transaction) => {
-    if (filter === "current") return transaction.date.startsWith(state.activeMonth);
-    if (filter === "archived") return archivedMonths.has(transaction.date.slice(0, 7));
+    if (filter === "current") return transaction.accountingMonth === state.activeMonth;
+    if (filter === "archived") return archivedMonths.has(transaction.accountingMonth);
     return true;
   });
   const transactions = sortNewestFirst(filteredTransactions);
@@ -202,6 +231,7 @@ function renderLedger() {
   document.querySelector("#ledger-empty").hidden = transactions.length > 0;
   dom.ledgerBody.innerHTML = transactions.map((transaction) => `<tr>
     <td>${dateFormatter.format(parseLocalDate(transaction.date))}</td>
+    <td>${formatMonth(transaction.accountingMonth)}</td>
     <td class="transaction-description"><strong>${escapeHtml(transaction.description)}</strong>${transaction.notes ? `<small title="${escapeHtml(transaction.notes)}">${escapeHtml(transaction.notes)}</small>` : ""}</td>
     <td>${escapeHtml(transaction.category)}</td>
     <td><span class="type-badge ${transaction.type}">${transaction.type}</span></td>
@@ -216,7 +246,7 @@ function renderReports() {
   document.querySelector("#reports-empty").hidden = history.length > 0;
   dom.reportsBody.innerHTML = history.map((record) => {
     const profitClass = record.profit > 0 ? "profit-positive" : record.profit < 0 ? "profit-negative" : "";
-    return `<tr><td><strong>${formatMonth(record.month)}</strong></td><td class="number-cell profit-positive">${formatCurrency(record.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(record.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(record.profit)}</strong></td></tr>`;
+    return `<tr><td><button class="month-link" type="button" data-report-month="${record.month}">${formatMonth(record.month)}</button></td><td class="number-cell profit-positive">${formatCurrency(record.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(record.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(record.profit)}</strong></td></tr>`;
   }).join("");
 }
 
@@ -247,6 +277,7 @@ function openTransactionDialog(transaction = null) {
   document.querySelector("#transaction-category").value = transaction?.category || "Revenue";
   document.querySelector("#transaction-amount").value = transaction?.amount || "";
   document.querySelector("#transaction-notes").value = transaction?.notes || "";
+  document.querySelector("#transaction-accounting-month").textContent = formatMonth(transaction?.accountingMonth || state.activeMonth);
   document.querySelector(`input[name="transaction-type"][value="${transaction?.type || "income"}"]`).checked = true;
   dom.transactionDialog.showModal();
 }
@@ -263,6 +294,7 @@ function saveTransaction(event) {
     type: document.querySelector('input[name="transaction-type"]:checked').value,
     amount: Number(document.querySelector("#transaction-amount").value),
     notes: document.querySelector("#transaction-notes").value.trim(),
+    accountingMonth: existing?.accountingMonth || state.activeMonth,
     createdAt: existing?.createdAt || new Date().toISOString()
   };
   if (id) state.transactions = state.transactions.map((item) => item.id === id ? transaction : item);
@@ -290,14 +322,15 @@ function processMonthlyExpenses() {
   }
   if (!window.confirm(`Post ${pending.length} recurring expenses totaling ${formatCurrency(pending.reduce((sum, item) => sum + item.amount, 0))} for ${formatMonth(monthKey)}?`)) return;
   const date = `${monthKey}-01`;
-  pending.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", recurringMonth: monthKey, createdAt: `${new Date().toISOString()}-${index}` }));
+  pending.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", accountingMonth: monthKey, recurringMonth: monthKey, notes: "Monthly recurring expense", createdAt: `${new Date().toISOString()}-${index}` }));
   persistAndRender();
   showToast(`${pending.length} monthly expenses processed.`);
 }
 
 function closeMonth() {
   const monthKey = state.activeMonth;
-  const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
+  const monthTransactions = state.transactions.filter((transaction) => transaction.accountingMonth === monthKey);
+  const totals = calculateTotals(monthTransactions);
   const confirmation = `Close ${formatMonth(monthKey)}?\n\nRevenue: ${formatCurrency(totals.revenue)}\nExpenses: ${formatCurrency(totals.expenses)}\nProfit/Loss: ${formatCurrency(totals.profit)}`;
   if (!window.confirm(confirmation)) return;
 
@@ -307,11 +340,31 @@ function closeMonth() {
     revenue: totals.revenue,
     expenses: totals.expenses,
     profit: totals.profit,
+    revenueByCategory: calculateCategoryBreakdown(monthTransactions, "income"),
+    expenseByCategory: calculateCategoryBreakdown(monthTransactions, "expense"),
     closedAt: new Date().toISOString()
   });
   state.activeMonth = nextMonthKey(monthKey);
   persistAndRender();
   showToast(`${formatMonth(monthKey)} closed. ${formatMonth(state.activeMonth)} is now active.`);
+}
+
+function renderBreakdown(breakdown) {
+  const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+  return entries.length ? entries.map(([category, amount]) => `<div class="breakdown-row"><span>${escapeHtml(category)}</span><strong>${formatCurrency(amount)}</strong></div>`).join("") : '<p class="breakdown-empty">No activity in this period.</p>';
+}
+
+function openMonthlyReport(monthKey) {
+  const record = state.monthlyHistory.find((item) => item.month === monthKey);
+  if (!record) return;
+  document.querySelector("#report-dialog-title").textContent = formatMonth(record.month);
+  document.querySelector("#report-revenue-breakdown").innerHTML = renderBreakdown(record.revenueByCategory);
+  document.querySelector("#report-expense-breakdown").innerHTML = renderBreakdown(record.expenseByCategory);
+  const net = document.querySelector("#report-net-profit");
+  net.textContent = formatCurrency(record.profit);
+  net.classList.toggle("profit-positive", record.profit > 0);
+  net.classList.toggle("profit-negative", record.profit < 0);
+  dom.reportDialog.showModal();
 }
 
 function saveSettingsAutomatically() {
@@ -348,6 +401,10 @@ dom.ledgerBody.addEventListener("click", (event) => {
   const deleteButton = event.target.closest("[data-delete-transaction]");
   if (editButton) openTransactionDialog(state.transactions.find((transaction) => transaction.id === editButton.dataset.editTransaction));
   if (deleteButton) deleteTransaction(deleteButton.dataset.deleteTransaction);
+});
+dom.reportsBody.addEventListener("click", (event) => {
+  const reportButton = event.target.closest("[data-report-month]");
+  if (reportButton) openMonthlyReport(reportButton.dataset.reportMonth);
 });
 
 renderApplication();
