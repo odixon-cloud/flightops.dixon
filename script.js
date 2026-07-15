@@ -1,41 +1,295 @@
 "use strict";
 
-const navigationTabs = document.querySelectorAll("[data-page]");
-const pagePanels = document.querySelectorAll("[data-page-panel]");
+const STORAGE_KEY = "flightops-pro-accounting-v2";
+const DEFAULT_STATE = {
+  companyName: "Dixon Air Cargo",
+  startingCapital: 2500000,
+  transactions: []
+};
+
+const RECURRING_EXPENSES = [
+  { description: "Aircraft Lease", category: "Lease", amount: 220000 },
+  { description: "Hangar", category: "Hangar", amount: 20000 },
+  { description: "Payroll", category: "Payroll", amount: 115000 },
+  { description: "Insurance", category: "Insurance", amount: 25000 },
+  { description: "Maintenance Reserve", category: "Maintenance", amount: 100000 }
+];
+
+const currencyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
+const dateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+let state = loadState();
+
+const dom = {
+  navigationTabs: document.querySelectorAll("[data-page]"),
+  pagePanels: document.querySelectorAll("[data-page-panel]"),
+  transactionDialog: document.querySelector("#transaction-dialog"),
+  transactionForm: document.querySelector("#transaction-form"),
+  ledgerBody: document.querySelector("#ledger-table-body"),
+  reportsBody: document.querySelector("#reports-table-body"),
+  settingsForm: document.querySelector("#settings-form")
+};
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function currentMonthKey() {
+  return localDateString().slice(0, 7);
+}
+
+function createId() {
+  return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function formatCurrency(value) {
+  return currencyFormatter.format(Number(value) || 0);
+}
+
+function parseLocalDate(value) {
+  return new Date(`${value}T12:00:00`);
+}
+
+function formatMonth(monthKey) {
+  return monthFormatter.format(new Date(`${monthKey}-01T12:00:00`));
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
+}
+
+function isValidTransaction(transaction) {
+  return transaction && typeof transaction.id === "string" && typeof transaction.description === "string" && /^\d{4}-\d{2}-\d{2}$/.test(transaction.date) && ["income", "expense"].includes(transaction.type) && Number(transaction.amount) > 0;
+}
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved || !Array.isArray(saved.transactions)) return structuredClone(DEFAULT_STATE);
+    return {
+      companyName: typeof saved.companyName === "string" && saved.companyName.trim() ? saved.companyName.trim() : DEFAULT_STATE.companyName,
+      startingCapital: Number(saved.startingCapital) >= 0 ? Number(saved.startingCapital) : DEFAULT_STATE.startingCapital,
+      transactions: saved.transactions.filter(isValidTransaction)
+    };
+  } catch {
+    return structuredClone(DEFAULT_STATE);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function transactionValue(transaction) {
+  return transaction.type === "income" ? Number(transaction.amount) : -Number(transaction.amount);
+}
+
+function calculateTotals(transactions) {
+  return transactions.reduce((totals, transaction) => {
+    if (transaction.type === "income") totals.revenue += Number(transaction.amount);
+    else totals.expenses += Number(transaction.amount);
+    totals.profit = totals.revenue - totals.expenses;
+    return totals;
+  }, { revenue: 0, expenses: 0, profit: 0 });
+}
+
+function sortChronologically(transactions) {
+  return [...transactions].sort((a, b) => a.date.localeCompare(b.date) || String(a.createdAt || a.id).localeCompare(String(b.createdAt || b.id)));
+}
+
+function sortNewestFirst(transactions) {
+  return [...transactions].sort((a, b) => b.date.localeCompare(a.date) || String(b.createdAt || b.id).localeCompare(String(a.createdAt || a.id)));
+}
+
+function getRunningBalances() {
+  let balance = state.startingCapital;
+  const balances = new Map();
+  sortChronologically(state.transactions).forEach((transaction) => {
+    balance += transactionValue(transaction);
+    balances.set(transaction.id, balance);
+  });
+  return balances;
+}
 
 function showPage(pageName, updateHash = true) {
   const targetPage = document.querySelector(`[data-page-panel="${pageName}"]`);
+  if (!targetPage) return;
 
-  if (!targetPage) {
-    return;
-  }
-
-  pagePanels.forEach((page) => {
-    const isActive = page.dataset.pagePanel === pageName;
-    page.hidden = !isActive;
-    page.classList.toggle("active", isActive);
+  dom.pagePanels.forEach((page) => {
+    const active = page.dataset.pagePanel === pageName;
+    page.hidden = !active;
+    page.classList.toggle("active", active);
   });
-
-  navigationTabs.forEach((tab) => {
-    const isActive = tab.dataset.page === pageName;
-    tab.classList.toggle("active", isActive);
-    tab.setAttribute("aria-selected", String(isActive));
+  dom.navigationTabs.forEach((tab) => {
+    const active = tab.dataset.page === pageName;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
   });
-
-  if (updateHash) {
-    history.replaceState(null, "", `#${pageName}`);
-  }
-
+  if (updateHash) history.replaceState(null, "", `#${pageName}`);
   document.title = `${targetPage.querySelector("h1").textContent} | FlightOps Pro`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-navigationTabs.forEach((tab) => {
-  tab.addEventListener("click", () => showPage(tab.dataset.page));
+function renderDashboard() {
+  const monthKey = currentMonthKey();
+  const monthlyTransactions = state.transactions.filter((transaction) => transaction.date.startsWith(monthKey));
+  const monthly = calculateTotals(monthlyTransactions);
+  const lifetime = calculateTotals(state.transactions);
+  const cash = state.startingCapital + lifetime.profit;
+  const margin = monthly.revenue ? (monthly.profit / monthly.revenue) * 100 : null;
+
+  document.querySelector("#current-period").textContent = formatMonth(monthKey);
+  document.querySelector("#cash-on-hand").textContent = formatCurrency(cash);
+  document.querySelector("#starting-capital").textContent = formatCurrency(state.startingCapital);
+  document.querySelector("#month-revenue").textContent = formatCurrency(monthly.revenue);
+  document.querySelector("#month-expenses").textContent = formatCurrency(monthly.expenses);
+  document.querySelector("#month-profit").textContent = formatCurrency(monthly.profit);
+  document.querySelector("#month-margin").textContent = margin === null ? "No revenue posted" : `${margin.toFixed(1)}% operating margin`;
+  document.querySelector("#profit-card").classList.toggle("positive", monthly.profit > 0);
+  document.querySelector("#profit-card").classList.toggle("negative", monthly.profit < 0);
+
+  const recent = sortNewestFirst(state.transactions).slice(0, 5);
+  document.querySelector("#recent-transactions").innerHTML = recent.length ? recent.map((transaction) => {
+    const date = parseLocalDate(transaction.date);
+    return `<div class="activity-row"><div class="activity-date">${date.toLocaleString("en-US", { month: "short" })}<strong>${date.getDate()}</strong></div><div class="activity-copy"><strong>${escapeHtml(transaction.description)}</strong><small>${escapeHtml(transaction.category)} · ${transaction.type}</small></div><span class="amount ${transaction.type}">${transaction.type === "income" ? "+" : "−"}${formatCurrency(transaction.amount)}</span></div>`;
+  }).join("") : `<div class="empty-state"><span class="empty-state-mark" aria-hidden="true">OPS</span><h3>No transactions posted</h3><p>Add a ledger transaction to begin tracking financial performance.</p></div>`;
+}
+
+function renderLedger() {
+  const transactions = sortNewestFirst(state.transactions);
+  const runningBalances = getRunningBalances();
+  const currentBalance = state.startingCapital + calculateTotals(state.transactions).profit;
+  document.querySelector("#ledger-count").textContent = transactions.length;
+  document.querySelector("#ledger-balance").textContent = formatCurrency(currentBalance);
+  document.querySelector("#ledger-empty").hidden = transactions.length > 0;
+  dom.ledgerBody.innerHTML = transactions.map((transaction) => `<tr>
+    <td>${dateFormatter.format(parseLocalDate(transaction.date))}</td>
+    <td class="transaction-description">${escapeHtml(transaction.description)}</td>
+    <td>${escapeHtml(transaction.category)}</td>
+    <td><span class="type-badge ${transaction.type}">${transaction.type}</span></td>
+    <td class="number-cell"><span class="amount ${transaction.type}">${transaction.type === "income" ? "+" : "−"}${formatCurrency(transaction.amount)}</span></td>
+    <td class="number-cell">${formatCurrency(runningBalances.get(transaction.id))}</td>
+    <td class="action-cell"><button class="row-button" type="button" data-edit-transaction="${transaction.id}">Edit</button><button class="row-button delete" type="button" data-delete-transaction="${transaction.id}">Delete</button></td>
+  </tr>`).join("");
+}
+
+function renderReports() {
+  const monthKeys = [...new Set(state.transactions.map((transaction) => transaction.date.slice(0, 7)))].sort().reverse();
+  document.querySelector("#reports-empty").hidden = monthKeys.length > 0;
+  dom.reportsBody.innerHTML = monthKeys.map((monthKey) => {
+    const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
+    const profitClass = totals.profit > 0 ? "profit-positive" : totals.profit < 0 ? "profit-negative" : "";
+    return `<tr><td><strong>${formatMonth(monthKey)}</strong></td><td class="number-cell profit-positive">${formatCurrency(totals.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(totals.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(totals.profit)}</strong></td></tr>`;
+  }).join("");
+}
+
+function renderSettings() {
+  document.querySelector("#company-name").value = state.companyName;
+  document.querySelector("#capital-input").value = state.startingCapital;
+  document.querySelector("#brand-company-name").textContent = state.companyName;
+}
+
+function renderApplication() {
+  renderDashboard();
+  renderLedger();
+  renderReports();
+  renderSettings();
+}
+
+function persistAndRender() {
+  saveState();
+  renderApplication();
+}
+
+function openTransactionDialog(transaction = null) {
+  dom.transactionForm.reset();
+  document.querySelector("#transaction-dialog-title").textContent = transaction ? "Edit Transaction" : "Add Transaction";
+  document.querySelector("#transaction-id").value = transaction?.id || "";
+  document.querySelector("#transaction-description").value = transaction?.description || "";
+  document.querySelector("#transaction-date").value = transaction?.date || localDateString();
+  document.querySelector("#transaction-category").value = transaction?.category || "Flight Revenue";
+  document.querySelector("#transaction-amount").value = transaction?.amount || "";
+  document.querySelector(`input[name="transaction-type"][value="${transaction?.type || "income"}"]`).checked = true;
+  dom.transactionDialog.showModal();
+}
+
+function saveTransaction(event) {
+  event.preventDefault();
+  const id = document.querySelector("#transaction-id").value;
+  const existing = state.transactions.find((transaction) => transaction.id === id);
+  const transaction = {
+    id: id || createId(),
+    description: document.querySelector("#transaction-description").value.trim(),
+    date: document.querySelector("#transaction-date").value,
+    category: document.querySelector("#transaction-category").value,
+    type: document.querySelector('input[name="transaction-type"]:checked').value,
+    amount: Number(document.querySelector("#transaction-amount").value),
+    createdAt: existing?.createdAt || new Date().toISOString()
+  };
+  if (id) state.transactions = state.transactions.map((item) => item.id === id ? transaction : item);
+  else state.transactions.push(transaction);
+  persistAndRender();
+  dom.transactionDialog.close();
+  showToast(id ? "Transaction updated." : "Transaction added.");
+}
+
+function deleteTransaction(id) {
+  const transaction = state.transactions.find((item) => item.id === id);
+  if (!transaction || !window.confirm(`Delete “${transaction.description}”?`)) return;
+  state.transactions = state.transactions.filter((item) => item.id !== id);
+  persistAndRender();
+  showToast("Transaction deleted.");
+}
+
+function processMonthlyExpenses() {
+  const monthKey = currentMonthKey();
+  const existingDescriptions = new Set(state.transactions.filter((transaction) => transaction.recurringMonth === monthKey).map((transaction) => transaction.description));
+  const pending = RECURRING_EXPENSES.filter((expense) => !existingDescriptions.has(expense.description));
+  if (!pending.length) {
+    showToast(`Monthly expenses for ${formatMonth(monthKey)} have already been processed.`, true);
+    return;
+  }
+  if (!window.confirm(`Post ${pending.length} recurring expenses totaling ${formatCurrency(pending.reduce((sum, item) => sum + item.amount, 0))} for ${formatMonth(monthKey)}?`)) return;
+  const date = `${monthKey}-01`;
+  pending.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", recurringMonth: monthKey, createdAt: `${new Date().toISOString()}-${index}` }));
+  persistAndRender();
+  showToast(`${pending.length} monthly expenses processed.`);
+}
+
+function saveSettings(event) {
+  event.preventDefault();
+  state.companyName = document.querySelector("#company-name").value.trim();
+  state.startingCapital = Number(document.querySelector("#capital-input").value);
+  persistAndRender();
+  showToast("Settings saved.");
+}
+
+function showToast(message, isError = false) {
+  const toast = document.createElement("div");
+  toast.className = `toast${isError ? " error" : ""}`;
+  toast.textContent = message;
+  document.querySelector("#toast-region").append(toast);
+  window.setTimeout(() => toast.remove(), 3200);
+}
+
+dom.navigationTabs.forEach((tab) => tab.addEventListener("click", () => showPage(tab.dataset.page)));
+document.querySelectorAll("[data-open-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.openPage)));
+window.addEventListener("hashchange", () => showPage(window.location.hash.slice(1) || "dashboard", false));
+document.querySelector("#add-transaction-button").addEventListener("click", () => openTransactionDialog());
+document.querySelector("#process-expenses-button").addEventListener("click", processMonthlyExpenses);
+document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
+dom.transactionForm.addEventListener("submit", saveTransaction);
+dom.settingsForm.addEventListener("submit", saveSettings);
+dom.ledgerBody.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-transaction]");
+  const deleteButton = event.target.closest("[data-delete-transaction]");
+  if (editButton) openTransactionDialog(state.transactions.find((transaction) => transaction.id === editButton.dataset.editTransaction));
+  if (deleteButton) deleteTransaction(deleteButton.dataset.deleteTransaction);
 });
 
-window.addEventListener("hashchange", () => {
-  showPage(window.location.hash.slice(1) || "dashboard", false);
-});
-
+renderApplication();
 showPage(window.location.hash.slice(1) || "dashboard", false);

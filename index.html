@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="FlightOps Pro airline operations workspace for Dixon Air Cargo.">
-  <title>FlightOps Pro | Dixon Air Cargo</title>
+  <meta name="description" content="FlightOps Pro airline accounting for Dixon Air Cargo.">
+  <title>Dashboard | FlightOps Pro</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,10 +12,7 @@
     <header class="topbar">
       <a class="brand" href="#dashboard" aria-label="FlightOps Pro dashboard">
         <span class="brand-mark" aria-hidden="true">DA</span>
-        <span class="brand-copy">
-          <strong>FlightOps Pro</strong>
-          <small>Dixon Air Cargo</small>
-        </span>
+        <span class="brand-copy"><strong>FlightOps Pro</strong><small id="brand-company-name">Dixon Air Cargo</small></span>
       </a>
 
       <nav class="primary-nav" aria-label="Primary navigation">
@@ -25,133 +22,93 @@
         <button class="nav-tab" type="button" data-page="settings" aria-controls="settings-page" aria-selected="false">Settings</button>
       </nav>
 
-      <div class="system-status" aria-label="System status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span>System ready</span>
-      </div>
+      <div class="system-status" aria-label="Storage status"><span class="status-dot" aria-hidden="true"></span><span>Auto-save active</span></div>
     </header>
 
     <main class="workspace">
       <section class="page active" id="dashboard-page" data-page-panel="dashboard" aria-labelledby="dashboard-title">
         <header class="page-header">
-          <div>
-            <p class="eyebrow">Operations overview</p>
-            <h1 id="dashboard-title">Dashboard</h1>
-            <p class="page-description">Financial position and current operating period.</p>
-          </div>
-          <div class="period-chip">
-            <span>Operating period</span>
-            <strong>Not configured</strong>
-          </div>
+          <div><p class="eyebrow">Operations overview</p><h1 id="dashboard-title">Dashboard</h1><p class="page-description">Financial position and current operating performance.</p></div>
+          <div class="period-chip"><span>Operating period</span><strong id="current-period">—</strong></div>
         </header>
 
         <div class="metric-grid" aria-label="Financial summary">
-          <article class="metric-card metric-card--featured">
-            <div class="metric-heading">
-              <span>Cash on Hand</span>
-              <span class="metric-code">CASH</span>
-            </div>
-            <strong class="metric-value">—</strong>
-            <p>Available operating liquidity</p>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-heading">
-              <span>Current Month Revenue</span>
-              <span class="metric-signal metric-signal--positive">IN</span>
-            </div>
-            <strong class="metric-value">—</strong>
-            <p>Income posted this period</p>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-heading">
-              <span>Current Month Expenses</span>
-              <span class="metric-signal metric-signal--negative">OUT</span>
-            </div>
-            <strong class="metric-value">—</strong>
-            <p>Expenses posted this period</p>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-heading">
-              <span>Current Month Profit/Loss</span>
-              <span class="metric-code">NET</span>
-            </div>
-            <strong class="metric-value">—</strong>
-            <p>Net operating result</p>
-          </article>
+          <article class="metric-card metric-card--featured"><div class="metric-heading"><span>Cash on Hand</span><span class="metric-code">CASH</span></div><strong class="metric-value" id="cash-on-hand">$0.00</strong><p>Available operating liquidity</p></article>
+          <article class="metric-card"><div class="metric-heading"><span>Starting Capital</span><span class="metric-code">OPEN</span></div><strong class="metric-value" id="starting-capital">$0.00</strong><p>Configured opening balance</p></article>
+          <article class="metric-card"><div class="metric-heading"><span>Current Month Revenue</span><span class="metric-signal metric-signal--positive">IN</span></div><strong class="metric-value" id="month-revenue">$0.00</strong><p>Income posted this period</p></article>
+          <article class="metric-card"><div class="metric-heading"><span>Current Month Expenses</span><span class="metric-signal metric-signal--negative">OUT</span></div><strong class="metric-value" id="month-expenses">$0.00</strong><p>Expenses posted this period</p></article>
+          <article class="metric-card" id="profit-card"><div class="metric-heading"><span>Current Month Profit/Loss</span><span class="metric-code">NET</span></div><strong class="metric-value" id="month-profit">$0.00</strong><p id="month-margin">No revenue posted</p></article>
         </div>
 
-        <section class="panel overview-panel" aria-labelledby="activity-title">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Activity monitor</p>
-              <h2 id="activity-title">Recent Operations</h2>
-            </div>
-            <span class="panel-label">Awaiting data</span>
-          </div>
-          <div class="empty-state">
-            <span class="empty-state-mark" aria-hidden="true">OPS</span>
-            <h3>Operations workspace ready</h3>
-            <p>Financial activity will appear here when transaction features are enabled.</p>
-          </div>
+        <section class="panel" aria-labelledby="activity-title">
+          <div class="panel-header"><div><p class="eyebrow">Activity monitor</p><h2 id="activity-title">Recent Transactions</h2></div><button class="text-button" type="button" data-open-page="ledger">View ledger</button></div>
+          <div id="recent-transactions"></div>
         </section>
       </section>
 
       <section class="page" id="ledger-page" data-page-panel="ledger" aria-labelledby="ledger-title" hidden>
         <header class="page-header">
-          <div>
-            <p class="eyebrow">Accounting register</p>
-            <h1 id="ledger-title">Ledger</h1>
-            <p class="page-description">Income and expense transaction records.</p>
-          </div>
+          <div><p class="eyebrow">Accounting register</p><h1 id="ledger-title">Ledger</h1><p class="page-description">Income and expense transactions, sorted newest first.</p></div>
+          <div class="page-actions"><button class="button button--secondary" type="button" id="process-expenses-button">Process Monthly Expenses</button><button class="button button--primary" type="button" id="add-transaction-button">Add Transaction</button></div>
         </header>
-        <section class="panel empty-page">
-          <div class="empty-state">
-            <span class="empty-state-mark" aria-hidden="true">LGR</span>
-            <h2>Ledger foundation</h2>
-            <p>Transaction management will be added in a future release.</p>
+
+        <section class="panel">
+          <div class="ledger-summary"><span><strong id="ledger-count">0</strong> transactions</span><span>Current balance <strong id="ledger-balance">$0.00</strong></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="number-cell">Amount</th><th class="number-cell">Balance</th><th class="action-cell">Actions</th></tr></thead>
+              <tbody id="ledger-table-body"></tbody>
+            </table>
           </div>
+          <div class="empty-state" id="ledger-empty" hidden><span class="empty-state-mark" aria-hidden="true">LGR</span><h2>No transactions posted</h2><p>Add a transaction or process the default monthly expenses.</p></div>
         </section>
       </section>
 
       <section class="page" id="reports-page" data-page-panel="reports" aria-labelledby="reports-title" hidden>
-        <header class="page-header">
-          <div>
-            <p class="eyebrow">Period reporting</p>
-            <h1 id="reports-title">Reports</h1>
-            <p class="page-description">Monthly operating and financial performance.</p>
+        <header class="page-header"><div><p class="eyebrow">Period reporting</p><h1 id="reports-title">Monthly Reports</h1><p class="page-description">Consolidated revenue, expenses, and operating results by month.</p></div></header>
+        <section class="panel">
+          <div class="table-wrap">
+            <table><thead><tr><th>Month</th><th class="number-cell">Revenue</th><th class="number-cell">Expenses</th><th class="number-cell">Profit/Loss</th></tr></thead><tbody id="reports-table-body"></tbody></table>
           </div>
-        </header>
-        <section class="panel empty-page">
-          <div class="empty-state">
-            <span class="empty-state-mark" aria-hidden="true">RPT</span>
-            <h2>Reports foundation</h2>
-            <p>Monthly reporting tools will be added in a future release.</p>
-          </div>
+          <div class="empty-state" id="reports-empty" hidden><span class="empty-state-mark" aria-hidden="true">RPT</span><h2>No report data</h2><p>Monthly reports will be generated automatically from ledger activity.</p></div>
         </section>
       </section>
 
       <section class="page" id="settings-page" data-page-panel="settings" aria-labelledby="settings-title" hidden>
-        <header class="page-header">
-          <div>
-            <p class="eyebrow">System configuration</p>
-            <h1 id="settings-title">Settings</h1>
-            <p class="page-description">Airline profile and application preferences.</p>
-          </div>
-        </header>
-        <section class="panel empty-page">
-          <div class="empty-state">
-            <span class="empty-state-mark" aria-hidden="true">CFG</span>
-            <h2>Settings foundation</h2>
-            <p>Configuration controls will be added in a future release.</p>
-          </div>
+        <header class="page-header"><div><p class="eyebrow">System configuration</p><h1 id="settings-title">Settings</h1><p class="page-description">Manage the company profile and opening balance.</p></div></header>
+        <section class="panel settings-panel">
+          <div class="panel-header"><div><p class="eyebrow">Company profile</p><h2>Accounting Settings</h2></div><span class="panel-label">Saved locally</span></div>
+          <form id="settings-form" class="settings-form">
+            <div class="form-field"><label for="company-name">Company Name</label><input type="text" id="company-name" maxlength="80" required></div>
+            <div class="form-field"><label for="capital-input">Starting Capital (USD)</label><input type="number" id="capital-input" min="0" step="0.01" required><small>Changing this value recalculates cash on hand and every running balance.</small></div>
+            <div class="form-actions"><button class="button button--primary" type="submit">Save Settings</button></div>
+          </form>
         </section>
       </section>
     </main>
   </div>
 
+  <dialog class="modal" id="transaction-dialog">
+    <form id="transaction-form">
+      <div class="modal-header"><div><p class="eyebrow">Ledger entry</p><h2 id="transaction-dialog-title">Add Transaction</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Close dialog">×</button></div>
+      <input type="hidden" id="transaction-id">
+      <div class="type-selector" aria-label="Transaction type">
+        <label><input type="radio" name="transaction-type" value="income" checked><span>Income</span></label>
+        <label><input type="radio" name="transaction-type" value="expense"><span>Expense</span></label>
+      </div>
+      <div class="form-grid">
+        <div class="form-field form-field--wide"><label for="transaction-description">Description</label><input type="text" id="transaction-description" maxlength="100" placeholder="e.g. ORD to ANC cargo service" required></div>
+        <div class="form-field"><label for="transaction-date">Date</label><input type="date" id="transaction-date" required></div>
+        <div class="form-field"><label for="transaction-category">Category</label><select id="transaction-category" required>
+          <option>Flight Revenue</option><option>Fuel</option><option>Lease</option><option>Hangar</option><option>Payroll</option><option>Insurance</option><option>Maintenance</option><option>Landing Fees</option><option>Office</option><option>Miscellaneous</option>
+        </select></div>
+        <div class="form-field form-field--wide"><label for="transaction-amount">Amount (USD)</label><input type="number" id="transaction-amount" min="0.01" step="0.01" placeholder="0.00" required></div>
+      </div>
+      <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Cancel</button><button class="button button--primary" type="submit">Save Transaction</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
   <script src="script.js"></script>
 </body>
 </html>
