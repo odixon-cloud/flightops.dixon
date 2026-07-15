@@ -7,7 +7,8 @@ const DEFAULT_STATE = {
   activeMonth: "2026-01",
   transactions: [],
   monthlyHistory: [],
-  processedRecurringMonths: []
+  processedRecurringMonths: [],
+  aircraft: []
 };
 
 const RECURRING_EXPENSES = [
@@ -32,7 +33,10 @@ const dom = {
   ledgerBody: document.querySelector("#ledger-table-body"),
   reportsBody: document.querySelector("#reports-table-body"),
   settingsForm: document.querySelector("#settings-form"),
-  reportDialog: document.querySelector("#report-dialog")
+  reportDialog: document.querySelector("#report-dialog"),
+  aircraftDialog: document.querySelector("#aircraft-dialog"),
+  aircraftForm: document.querySelector("#aircraft-form"),
+  aircraftGrid: document.querySelector("#aircraft-grid")
 };
 
 function localDateString(date = new Date()) {
@@ -94,6 +98,22 @@ function isValidMonthlyRecord(record) {
   return record && /^\d{4}-\d{2}$/.test(record.month) && Number.isFinite(Number(record.revenue)) && Number.isFinite(Number(record.expenses)) && Number.isFinite(Number(record.profit));
 }
 
+function isValidAircraft(aircraft) {
+  return aircraft && typeof aircraft.id === "string" && typeof aircraft.tailNumber === "string" && typeof aircraft.aircraftType === "string" && ["Available", "Flying", "Maintenance", "Out of Service"].includes(aircraft.status);
+}
+
+function normalizeAircraft(aircraft) {
+  return {
+    ...aircraft,
+    currentAirport: typeof aircraft.currentAirport === "string" ? aircraft.currentAirport : "",
+    flightHours: Number(aircraft.flightHours) || 0,
+    leaseCost: Number(aircraft.leaseCost) || 0,
+    monthlyLeasePayment: Number(aircraft.monthlyLeasePayment) || 0,
+    purchaseValue: Number(aircraft.purchaseValue) || 0,
+    notes: typeof aircraft.notes === "string" ? aircraft.notes : ""
+  };
+}
+
 function calculateCategoryBreakdown(transactions, type) {
   return transactions.filter((transaction) => transaction.type === type).reduce((breakdown, transaction) => {
     breakdown[transaction.category] = (breakdown[transaction.category] || 0) + Number(transaction.amount);
@@ -126,7 +146,8 @@ function loadState() {
       activeMonth: /^\d{4}-\d{2}$/.test(saved.activeMonth) ? saved.activeMonth : DEFAULT_STATE.activeMonth,
       transactions,
       monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord).map((record) => normalizeMonthlyRecord(record, transactions)) : [],
-      processedRecurringMonths: [...new Set([...savedProcessedMonths, ...inferredProcessedMonths])]
+      processedRecurringMonths: [...new Set([...savedProcessedMonths, ...inferredProcessedMonths])],
+      aircraft: Array.isArray(saved.aircraft) ? saved.aircraft.filter(isValidAircraft).map(normalizeAircraft) : []
     };
   } catch {
     return structuredClone(DEFAULT_STATE);
@@ -212,6 +233,11 @@ function renderDashboard() {
   document.querySelector("#recent-profit-card").classList.toggle("positive", Boolean(mostRecentMonth && mostRecentMonth.profit > 0));
   document.querySelector("#recent-profit-card").classList.toggle("negative", Boolean(mostRecentMonth && mostRecentMonth.profit < 0));
 
+  document.querySelector("#fleet-size").textContent = state.aircraft.length;
+  document.querySelector("#fleet-available").textContent = state.aircraft.filter((aircraft) => aircraft.status === "Available").length;
+  document.querySelector("#fleet-flying").textContent = state.aircraft.filter((aircraft) => aircraft.status === "Flying").length;
+  document.querySelector("#fleet-maintenance").textContent = state.aircraft.filter((aircraft) => aircraft.status === "Maintenance").length;
+
   const recent = sortNewestFirst(state.transactions).slice(0, 5);
   document.querySelector("#recent-transactions").innerHTML = recent.length ? recent.map((transaction) => {
     const date = parseLocalDate(transaction.date);
@@ -254,6 +280,28 @@ function renderReports() {
   }).join("");
 }
 
+function statusClass(status) {
+  return status.toLowerCase().replaceAll(" ", "-");
+}
+
+function renderFleet() {
+  const aircraft = [...state.aircraft].sort((a, b) => a.tailNumber.localeCompare(b.tailNumber));
+  document.querySelector("#fleet-empty").hidden = aircraft.length > 0;
+  dom.aircraftGrid.innerHTML = aircraft.map((item) => `<article class="aircraft-card">
+    <div class="aircraft-card-header"><div><h2>${escapeHtml(item.tailNumber)}</h2><p>${escapeHtml(item.aircraftType)}</p></div><span class="aircraft-status ${statusClass(item.status)}">${escapeHtml(item.status)}</span></div>
+    <div class="aircraft-details">
+      <div class="aircraft-detail"><span>Current Airport</span><strong>${escapeHtml(item.currentAirport || "—")}</strong></div>
+      <div class="aircraft-detail"><span>Flight Hours</span><strong>${item.flightHours.toLocaleString("en-US", { maximumFractionDigits: 1 })}</strong></div>
+      <div class="aircraft-detail"><span>Lease Cost</span><strong>${formatCurrency(item.leaseCost)}</strong></div>
+      <div class="aircraft-detail"><span>Monthly Payment</span><strong>${formatCurrency(item.monthlyLeasePayment)}</strong></div>
+      <div class="aircraft-detail"><span>Purchase Value</span><strong>${formatCurrency(item.purchaseValue)}</strong></div>
+      <div class="aircraft-detail"><span>Registry Status</span><strong>${escapeHtml(item.status)}</strong></div>
+    </div>
+    <p class="aircraft-notes">${escapeHtml(item.notes || "No aircraft notes recorded.")}</p>
+    <div class="aircraft-actions"><button class="row-button" type="button" data-edit-aircraft="${item.id}">Edit</button><button class="row-button delete" type="button" data-delete-aircraft="${item.id}">Delete</button></div>
+  </article>`).join("");
+}
+
 function renderSettings() {
   document.querySelector("#company-name").value = state.companyName;
   document.querySelector("#capital-input").value = state.startingCapital;
@@ -264,6 +312,7 @@ function renderApplication() {
   renderDashboard();
   renderLedger();
   renderReports();
+  renderFleet();
   renderSettings();
 }
 
@@ -300,6 +349,54 @@ function openTransactionDialog(transaction = null) {
   document.querySelector("#transaction-accounting-month").textContent = formatMonth(transaction?.accountingMonth || state.activeMonth);
   document.querySelector(`input[name="transaction-type"][value="${transaction?.type || "income"}"]`).checked = true;
   dom.transactionDialog.showModal();
+}
+
+function openAircraftDialog(aircraft = null) {
+  dom.aircraftForm.reset();
+  document.querySelector("#aircraft-dialog-title").textContent = aircraft ? "Edit Aircraft" : "Add Aircraft";
+  document.querySelector("#aircraft-id").value = aircraft?.id || "";
+  document.querySelector("#aircraft-tail-number").value = aircraft?.tailNumber || "";
+  document.querySelector("#aircraft-type").value = aircraft?.aircraftType || "";
+  document.querySelector("#aircraft-status").value = aircraft?.status || "Available";
+  document.querySelector("#aircraft-airport").value = aircraft?.currentAirport || "";
+  document.querySelector("#aircraft-flight-hours").value = aircraft?.flightHours ?? "";
+  document.querySelector("#aircraft-lease-cost").value = aircraft?.leaseCost ?? "";
+  document.querySelector("#aircraft-monthly-payment").value = aircraft?.monthlyLeasePayment ?? "";
+  document.querySelector("#aircraft-purchase-value").value = aircraft?.purchaseValue ?? "";
+  document.querySelector("#aircraft-notes").value = aircraft?.notes || "";
+  dom.aircraftDialog.showModal();
+}
+
+function saveAircraft(event) {
+  event.preventDefault();
+  const id = document.querySelector("#aircraft-id").value;
+  const existing = state.aircraft.find((aircraft) => aircraft.id === id);
+  const aircraft = {
+    id: id || createId(),
+    tailNumber: document.querySelector("#aircraft-tail-number").value.trim().toUpperCase(),
+    aircraftType: document.querySelector("#aircraft-type").value.trim(),
+    status: document.querySelector("#aircraft-status").value,
+    currentAirport: document.querySelector("#aircraft-airport").value.trim().toUpperCase(),
+    flightHours: Number(document.querySelector("#aircraft-flight-hours").value),
+    leaseCost: Number(document.querySelector("#aircraft-lease-cost").value),
+    monthlyLeasePayment: Number(document.querySelector("#aircraft-monthly-payment").value),
+    purchaseValue: Number(document.querySelector("#aircraft-purchase-value").value),
+    notes: document.querySelector("#aircraft-notes").value.trim(),
+    createdAt: existing?.createdAt || new Date().toISOString()
+  };
+  if (id) state.aircraft = state.aircraft.map((item) => item.id === id ? aircraft : item);
+  else state.aircraft.push(aircraft);
+  persistAndRender();
+  dom.aircraftDialog.close();
+  showToast(id ? "Aircraft updated." : "Aircraft added.");
+}
+
+function deleteAircraft(id) {
+  const aircraft = state.aircraft.find((item) => item.id === id);
+  if (!aircraft || !window.confirm(`Delete aircraft ${aircraft.tailNumber}?`)) return;
+  state.aircraft = state.aircraft.filter((item) => item.id !== id);
+  persistAndRender();
+  showToast("Aircraft deleted.");
 }
 
 function saveTransaction(event) {
@@ -410,11 +507,13 @@ dom.navigationTabs.forEach((tab) => tab.addEventListener("click", () => showPage
 document.querySelectorAll("[data-open-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.openPage)));
 window.addEventListener("hashchange", () => showPage(window.location.hash.slice(1) || "dashboard", false));
 document.querySelector("#add-transaction-button").addEventListener("click", () => openTransactionDialog());
+document.querySelector("#add-aircraft-button").addEventListener("click", () => openAircraftDialog());
 document.querySelector("#process-expenses-button").addEventListener("click", processMonthlyExpenses);
 document.querySelector("#close-month-button").addEventListener("click", closeMonth);
 document.querySelector("#ledger-filter").addEventListener("change", renderLedger);
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 dom.transactionForm.addEventListener("submit", saveTransaction);
+dom.aircraftForm.addEventListener("submit", saveAircraft);
 dom.settingsForm.addEventListener("change", saveSettingsAutomatically);
 dom.settingsForm.addEventListener("submit", (event) => event.preventDefault());
 dom.ledgerBody.addEventListener("click", (event) => {
@@ -426,6 +525,12 @@ dom.ledgerBody.addEventListener("click", (event) => {
 dom.reportsBody.addEventListener("click", (event) => {
   const reportButton = event.target.closest("[data-report-month]");
   if (reportButton) openMonthlyReport(reportButton.dataset.reportMonth);
+});
+dom.aircraftGrid.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-aircraft]");
+  const deleteButton = event.target.closest("[data-delete-aircraft]");
+  if (editButton) openAircraftDialog(state.aircraft.find((aircraft) => aircraft.id === editButton.dataset.editAircraft));
+  if (deleteButton) deleteAircraft(deleteButton.dataset.deleteAircraft);
 });
 
 renderApplication();

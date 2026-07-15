@@ -17,6 +17,7 @@
 
       <nav class="primary-nav" aria-label="Primary navigation">
         <button class="nav-tab active" type="button" data-page="dashboard" aria-controls="dashboard-page" aria-selected="true">Dashboard</button>
+        <button class="nav-tab" type="button" data-page="fleet" aria-controls="fleet-page" aria-selected="false">Fleet</button>
         <button class="nav-tab" type="button" data-page="ledger" aria-controls="ledger-page" aria-selected="false">Ledger</button>
         <button class="nav-tab" type="button" data-page="reports" aria-controls="reports-page" aria-selected="false">Reports</button>
         <button class="nav-tab" type="button" data-page="settings" aria-controls="settings-page" aria-selected="false">Settings</button>
@@ -42,9 +43,30 @@
           <article class="metric-card"><div class="metric-heading"><span>Total Months Closed</span><span class="metric-code">HISTORY</span></div><strong class="metric-value" id="total-months-closed">0</strong><p>Permanent monthly reports</p></article>
         </div>
 
+        <section class="panel fleet-summary-panel" aria-labelledby="fleet-summary-title">
+          <div class="panel-header"><div><p class="eyebrow">Aircraft status</p><h2 id="fleet-summary-title">Fleet Summary</h2></div><button class="text-button" type="button" data-open-page="fleet">Manage fleet</button></div>
+          <div class="fleet-summary-grid">
+            <div><span>Fleet Size</span><strong id="fleet-size">0</strong></div>
+            <div><span>Aircraft Available</span><strong id="fleet-available">0</strong></div>
+            <div><span>Aircraft Flying</span><strong id="fleet-flying">0</strong></div>
+            <div><span>In Maintenance</span><strong id="fleet-maintenance">0</strong></div>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="activity-title">
           <div class="panel-header"><div><p class="eyebrow">Activity monitor</p><h2 id="activity-title">Recent Transactions</h2></div><button class="text-button" type="button" data-open-page="ledger">View ledger</button></div>
           <div id="recent-transactions"></div>
+        </section>
+      </section>
+
+      <section class="page" id="fleet-page" data-page-panel="fleet" aria-labelledby="fleet-title" hidden>
+        <header class="page-header">
+          <div><p class="eyebrow">Aircraft registry</p><h1 id="fleet-title">Fleet</h1><p class="page-description">Aircraft status, location, utilization, and financial details.</p></div>
+          <button class="button button--primary" type="button" id="add-aircraft-button">Add Aircraft</button>
+        </header>
+        <div class="aircraft-grid" id="aircraft-grid"></div>
+        <section class="panel" id="fleet-empty" hidden>
+          <div class="empty-state"><span class="empty-state-mark" aria-hidden="true">FLT</span><h2>No aircraft registered</h2><p>Add the first aircraft to begin managing the Dixon Air Cargo fleet.</p></div>
         </section>
       </section>
 
@@ -109,6 +131,25 @@
         <div class="form-field form-field--wide"><label for="transaction-notes">Notes <span class="optional-label">Optional</span></label><textarea id="transaction-notes" rows="3" maxlength="300" placeholder="Add operational context or payment details"></textarea></div>
       </div>
       <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Cancel</button><button class="button button--primary" type="submit">Save Transaction</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="aircraft-dialog">
+    <form id="aircraft-form">
+      <div class="modal-header"><div><p class="eyebrow">Fleet registry</p><h2 id="aircraft-dialog-title">Add Aircraft</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Close dialog">×</button></div>
+      <input type="hidden" id="aircraft-id">
+      <div class="form-grid">
+        <div class="form-field"><label for="aircraft-tail-number">Tail Number</label><input type="text" id="aircraft-tail-number" maxlength="12" placeholder="N401DA" required></div>
+        <div class="form-field"><label for="aircraft-type">Aircraft Type</label><input type="text" id="aircraft-type" maxlength="60" placeholder="Boeing 767-300F" required></div>
+        <div class="form-field"><label for="aircraft-status">Status</label><select id="aircraft-status" required><option>Available</option><option>Flying</option><option>Maintenance</option><option>Out of Service</option></select></div>
+        <div class="form-field"><label for="aircraft-airport">Current Airport</label><input type="text" id="aircraft-airport" maxlength="8" placeholder="ORD" required></div>
+        <div class="form-field"><label for="aircraft-flight-hours">Flight Hours</label><input type="number" id="aircraft-flight-hours" min="0" step="0.1" placeholder="0.0" required></div>
+        <div class="form-field"><label for="aircraft-lease-cost">Lease Cost (USD)</label><input type="number" id="aircraft-lease-cost" min="0" step="0.01" placeholder="0.00" required></div>
+        <div class="form-field"><label for="aircraft-monthly-payment">Monthly Lease Payment</label><input type="number" id="aircraft-monthly-payment" min="0" step="0.01" placeholder="0.00" required></div>
+        <div class="form-field"><label for="aircraft-purchase-value">Purchase Value (USD)</label><input type="number" id="aircraft-purchase-value" min="0" step="0.01" placeholder="0.00" required></div>
+        <div class="form-field form-field--wide"><label for="aircraft-notes">Notes</label><textarea id="aircraft-notes" rows="3" maxlength="400" placeholder="Maintenance, configuration, or operational notes"></textarea></div>
+      </div>
+      <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Cancel</button><button class="button button--primary" type="submit">Save Aircraft</button></div>
     </form>
   </dialog>
 
