@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FlightOps Pro airline operations workspace for Dixon Air Cargo.">
+  <title>FlightOps Pro | Dixon Air Cargo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#dashboard" aria-label="FlightOps Pro dashboard">
+        <span class="brand-mark" aria-hidden="true">DA</span>
+        <span class="brand-copy">
+          <strong>FlightOps Pro</strong>
+          <small>Dixon Air Cargo</small>
+        </span>
+      </a>
+
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <button class="nav-tab active" type="button" data-page="dashboard" aria-controls="dashboard-page" aria-selected="true">Dashboard</button>
+        <button class="nav-tab" type="button" data-page="ledger" aria-controls="ledger-page" aria-selected="false">Ledger</button>
+        <button class="nav-tab" type="button" data-page="reports" aria-controls="reports-page" aria-selected="false">Reports</button>
+        <button class="nav-tab" type="button" data-page="settings" aria-controls="settings-page" aria-selected="false">Settings</button>
+      </nav>
+
+      <div class="system-status" aria-label="System status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>System ready</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="page active" id="dashboard-page" data-page-panel="dashboard" aria-labelledby="dashboard-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Operations overview</p>
+            <h1 id="dashboard-title">Dashboard</h1>
+            <p class="page-description">Financial position and current operating period.</p>
+          </div>
+          <div class="period-chip">
+            <span>Operating period</span>
+            <strong>Not configured</strong>
+          </div>
+        </header>
+
+        <div class="metric-grid" aria-label="Financial summary">
+          <article class="metric-card metric-card--featured">
+            <div class="metric-heading">
+              <span>Cash on Hand</span>
+              <span class="metric-code">CASH</span>
+            </div>
+            <strong class="metric-value">—</strong>
+            <p>Available operating liquidity</p>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-heading">
+              <span>Current Month Revenue</span>
+              <span class="metric-signal metric-signal--positive">IN</span>
+            </div>
+            <strong class="metric-value">—</strong>
+            <p>Income posted this period</p>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-heading">
+              <span>Current Month Expenses</span>
+              <span class="metric-signal metric-signal--negative">OUT</span>
+            </div>
+            <strong class="metric-value">—</strong>
+            <p>Expenses posted this period</p>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-heading">
+              <span>Current Month Profit/Loss</span>
+              <span class="metric-code">NET</span>
+            </div>
+            <strong class="metric-value">—</strong>
+            <p>Net operating result</p>
+          </article>
+        </div>
+
+        <section class="panel overview-panel" aria-labelledby="activity-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Activity monitor</p>
+              <h2 id="activity-title">Recent Operations</h2>
+            </div>
+            <span class="panel-label">Awaiting data</span>
+          </div>
+          <div class="empty-state">
+            <span class="empty-state-mark" aria-hidden="true">OPS</span>
+            <h3>Operations workspace ready</h3>
+            <p>Financial activity will appear here when transaction features are enabled.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="ledger-page" data-page-panel="ledger" aria-labelledby="ledger-title" hidden>
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Accounting register</p>
+            <h1 id="ledger-title">Ledger</h1>
+            <p class="page-description">Income and expense transaction records.</p>
+          </div>
+        </header>
+        <section class="panel empty-page">
+          <div class="empty-state">
+            <span class="empty-state-mark" aria-hidden="true">LGR</span>
+            <h2>Ledger foundation</h2>
+            <p>Transaction management will be added in a future release.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="reports-page" data-page-panel="reports" aria-labelledby="reports-title" hidden>
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Period reporting</p>
+            <h1 id="reports-title">Reports</h1>
+            <p class="page-description">Monthly operating and financial performance.</p>
+          </div>
+        </header>
+        <section class="panel empty-page">
+          <div class="empty-state">
+            <span class="empty-state-mark" aria-hidden="true">RPT</span>
+            <h2>Reports foundation</h2>
+            <p>Monthly reporting tools will be added in a future release.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="settings-page" data-page-panel="settings" aria-labelledby="settings-title" hidden>
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">System configuration</p>
+            <h1 id="settings-title">Settings</h1>
+            <p class="page-description">Airline profile and application preferences.</p>
+          </div>
+        </header>
+        <section class="panel empty-page">
+          <div class="empty-state">
+            <span class="empty-state-mark" aria-hidden="true">CFG</span>
+            <h2>Settings foundation</h2>
+            <p>Configuration controls will be added in a future release.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
