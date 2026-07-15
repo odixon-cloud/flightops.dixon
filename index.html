@@ -65,12 +65,11 @@
       </section>
 
       <section class="page" id="reports-page" data-page-panel="reports" aria-labelledby="reports-title" hidden>
-        <header class="page-header"><div><p class="eyebrow">Period reporting</p><h1 id="reports-title">Monthly Reports</h1><p class="page-description">Consolidated revenue, expenses, and operating results by month.</p></div></header>
+        <header class="page-header"><div><p class="eyebrow">Period reporting</p><h1 id="reports-title">Monthly Reports</h1><p class="page-description">Revenue, expenses, and operating result for the current month.</p></div></header>
         <section class="panel">
           <div class="table-wrap">
             <table><thead><tr><th>Month</th><th class="number-cell">Revenue</th><th class="number-cell">Expenses</th><th class="number-cell">Profit/Loss</th></tr></thead><tbody id="reports-table-body"></tbody></table>
           </div>
-          <div class="empty-state" id="reports-empty" hidden><span class="empty-state-mark" aria-hidden="true">RPT</span><h2>No report data</h2><p>Monthly reports will be generated automatically from ledger activity.</p></div>
         </section>
       </section>
 
@@ -78,10 +77,10 @@
         <header class="page-header"><div><p class="eyebrow">System configuration</p><h1 id="settings-title">Settings</h1><p class="page-description">Manage the company profile and opening balance.</p></div></header>
         <section class="panel settings-panel">
           <div class="panel-header"><div><p class="eyebrow">Company profile</p><h2>Accounting Settings</h2></div><span class="panel-label">Saved locally</span></div>
-          <form id="settings-form" class="settings-form">
+          <form id="settings-form" class="settings-form" autocomplete="off">
             <div class="form-field"><label for="company-name">Company Name</label><input type="text" id="company-name" maxlength="80" required></div>
             <div class="form-field"><label for="capital-input">Starting Capital (USD)</label><input type="number" id="capital-input" min="0" step="0.01" required><small>Changing this value recalculates cash on hand and every running balance.</small></div>
-            <div class="form-actions"><button class="button button--primary" type="submit">Save Settings</button></div>
+            <p class="auto-save-note"><span class="status-dot" aria-hidden="true"></span>Changes save automatically.</p>
           </form>
         </section>
       </section>
@@ -100,9 +99,10 @@
         <div class="form-field form-field--wide"><label for="transaction-description">Description</label><input type="text" id="transaction-description" maxlength="100" placeholder="e.g. ORD to ANC cargo service" required></div>
         <div class="form-field"><label for="transaction-date">Date</label><input type="date" id="transaction-date" required></div>
         <div class="form-field"><label for="transaction-category">Category</label><select id="transaction-category" required>
-          <option>Flight Revenue</option><option>Fuel</option><option>Lease</option><option>Hangar</option><option>Payroll</option><option>Insurance</option><option>Maintenance</option><option>Landing Fees</option><option>Office</option><option>Miscellaneous</option>
+          <option>Revenue</option><option>Fuel</option><option>Aircraft Lease</option><option>Hangar</option><option>Payroll</option><option>Insurance</option><option>Maintenance</option><option>Landing Fees</option><option>Office</option><option>Training</option><option>Miscellaneous</option>
         </select></div>
         <div class="form-field form-field--wide"><label for="transaction-amount">Amount (USD)</label><input type="number" id="transaction-amount" min="0.01" step="0.01" placeholder="0.00" required></div>
+        <div class="form-field form-field--wide"><label for="transaction-notes">Notes <span class="optional-label">Optional</span></label><textarea id="transaction-notes" rows="3" maxlength="300" placeholder="Add operational context or payment details"></textarea></div>
       </div>
       <div class="modal-actions"><button class="button button--secondary" type="button" data-close-dialog>Cancel</button><button class="button button--primary" type="submit">Save Transaction</button></div>
     </form>

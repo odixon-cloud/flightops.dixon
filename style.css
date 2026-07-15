@@ -39,7 +39,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -614,7 +615,8 @@ tbody tr:hover {
 }
 
 .form-field input,
-.form-field select {
+.form-field select,
+.form-field textarea {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -625,10 +627,46 @@ tbody tr:hover {
   font-size: 12px;
 }
 
+.form-field textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
 .form-field input:focus,
-.form-field select:focus {
+.form-field select:focus,
+.form-field textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(41, 195, 178, 0.08);
+}
+
+.optional-label {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.auto-save-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.transaction-description strong,
+.transaction-description small {
+  display: block;
+}
+
+.transaction-description small {
+  max-width: 300px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-field small {

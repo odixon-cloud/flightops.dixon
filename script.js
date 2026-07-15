@@ -8,7 +8,7 @@ const DEFAULT_STATE = {
 };
 
 const RECURRING_EXPENSES = [
-  { description: "Aircraft Lease", category: "Lease", amount: 220000 },
+  { description: "Aircraft Lease", category: "Aircraft Lease", amount: 220000 },
   { description: "Hangar", category: "Hangar", amount: 20000 },
   { description: "Payroll", category: "Payroll", amount: 115000 },
   { description: "Insurance", category: "Insurance", amount: 25000 },
@@ -66,6 +66,15 @@ function isValidTransaction(transaction) {
   return transaction && typeof transaction.id === "string" && typeof transaction.description === "string" && /^\d{4}-\d{2}-\d{2}$/.test(transaction.date) && ["income", "expense"].includes(transaction.type) && Number(transaction.amount) > 0;
 }
 
+function normalizeTransaction(transaction) {
+  const categoryAliases = { "Flight Revenue": "Revenue", Lease: "Aircraft Lease" };
+  return {
+    ...transaction,
+    category: categoryAliases[transaction.category] || transaction.category,
+    notes: typeof transaction.notes === "string" ? transaction.notes : ""
+  };
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -73,7 +82,7 @@ function loadState() {
     return {
       companyName: typeof saved.companyName === "string" && saved.companyName.trim() ? saved.companyName.trim() : DEFAULT_STATE.companyName,
       startingCapital: Number(saved.startingCapital) >= 0 ? Number(saved.startingCapital) : DEFAULT_STATE.startingCapital,
-      transactions: saved.transactions.filter(isValidTransaction)
+      transactions: saved.transactions.filter(isValidTransaction).map(normalizeTransaction)
     };
   } catch {
     return structuredClone(DEFAULT_STATE);
@@ -168,7 +177,7 @@ function renderLedger() {
   document.querySelector("#ledger-empty").hidden = transactions.length > 0;
   dom.ledgerBody.innerHTML = transactions.map((transaction) => `<tr>
     <td>${dateFormatter.format(parseLocalDate(transaction.date))}</td>
-    <td class="transaction-description">${escapeHtml(transaction.description)}</td>
+    <td class="transaction-description"><strong>${escapeHtml(transaction.description)}</strong>${transaction.notes ? `<small title="${escapeHtml(transaction.notes)}">${escapeHtml(transaction.notes)}</small>` : ""}</td>
     <td>${escapeHtml(transaction.category)}</td>
     <td><span class="type-badge ${transaction.type}">${transaction.type}</span></td>
     <td class="number-cell"><span class="amount ${transaction.type}">${transaction.type === "income" ? "+" : "−"}${formatCurrency(transaction.amount)}</span></td>
@@ -178,13 +187,10 @@ function renderLedger() {
 }
 
 function renderReports() {
-  const monthKeys = [...new Set(state.transactions.map((transaction) => transaction.date.slice(0, 7)))].sort().reverse();
-  document.querySelector("#reports-empty").hidden = monthKeys.length > 0;
-  dom.reportsBody.innerHTML = monthKeys.map((monthKey) => {
-    const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
-    const profitClass = totals.profit > 0 ? "profit-positive" : totals.profit < 0 ? "profit-negative" : "";
-    return `<tr><td><strong>${formatMonth(monthKey)}</strong></td><td class="number-cell profit-positive">${formatCurrency(totals.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(totals.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(totals.profit)}</strong></td></tr>`;
-  }).join("");
+  const monthKey = currentMonthKey();
+  const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
+  const profitClass = totals.profit > 0 ? "profit-positive" : totals.profit < 0 ? "profit-negative" : "";
+  dom.reportsBody.innerHTML = `<tr><td><strong>${formatMonth(monthKey)}</strong></td><td class="number-cell profit-positive">${formatCurrency(totals.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(totals.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(totals.profit)}</strong></td></tr>`;
 }
 
 function renderSettings() {
@@ -211,8 +217,9 @@ function openTransactionDialog(transaction = null) {
   document.querySelector("#transaction-id").value = transaction?.id || "";
   document.querySelector("#transaction-description").value = transaction?.description || "";
   document.querySelector("#transaction-date").value = transaction?.date || localDateString();
-  document.querySelector("#transaction-category").value = transaction?.category || "Flight Revenue";
+  document.querySelector("#transaction-category").value = transaction?.category || "Revenue";
   document.querySelector("#transaction-amount").value = transaction?.amount || "";
+  document.querySelector("#transaction-notes").value = transaction?.notes || "";
   document.querySelector(`input[name="transaction-type"][value="${transaction?.type || "income"}"]`).checked = true;
   dom.transactionDialog.showModal();
 }
@@ -228,6 +235,7 @@ function saveTransaction(event) {
     category: document.querySelector("#transaction-category").value,
     type: document.querySelector('input[name="transaction-type"]:checked').value,
     amount: Number(document.querySelector("#transaction-amount").value),
+    notes: document.querySelector("#transaction-notes").value.trim(),
     createdAt: existing?.createdAt || new Date().toISOString()
   };
   if (id) state.transactions = state.transactions.map((item) => item.id === id ? transaction : item);
@@ -260,12 +268,14 @@ function processMonthlyExpenses() {
   showToast(`${pending.length} monthly expenses processed.`);
 }
 
-function saveSettings(event) {
-  event.preventDefault();
-  state.companyName = document.querySelector("#company-name").value.trim();
-  state.startingCapital = Number(document.querySelector("#capital-input").value);
+function saveSettingsAutomatically() {
+  const companyName = document.querySelector("#company-name").value.trim();
+  const startingCapital = Number(document.querySelector("#capital-input").value);
+  if (!companyName || !Number.isFinite(startingCapital) || startingCapital < 0) return;
+  state.companyName = companyName;
+  state.startingCapital = startingCapital;
   persistAndRender();
-  showToast("Settings saved.");
+  showToast("Settings saved automatically.");
 }
 
 function showToast(message, isError = false) {
@@ -283,7 +293,8 @@ document.querySelector("#add-transaction-button").addEventListener("click", () =
 document.querySelector("#process-expenses-button").addEventListener("click", processMonthlyExpenses);
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 dom.transactionForm.addEventListener("submit", saveTransaction);
-dom.settingsForm.addEventListener("submit", saveSettings);
+dom.settingsForm.addEventListener("change", saveSettingsAutomatically);
+dom.settingsForm.addEventListener("submit", (event) => event.preventDefault());
 dom.ledgerBody.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-transaction]");
   const deleteButton = event.target.closest("[data-delete-transaction]");
