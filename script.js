@@ -6,7 +6,8 @@ const DEFAULT_STATE = {
   startingCapital: 2500000,
   activeMonth: "2026-01",
   transactions: [],
-  monthlyHistory: []
+  monthlyHistory: [],
+  processedRecurringMonths: []
 };
 
 const RECURRING_EXPENSES = [
@@ -117,12 +118,15 @@ function loadState() {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved || !Array.isArray(saved.transactions)) return structuredClone(DEFAULT_STATE);
     const transactions = saved.transactions.filter(isValidTransaction).map(normalizeTransaction);
+    const inferredProcessedMonths = transactions.filter((transaction) => /^\d{4}-\d{2}$/.test(transaction.recurringMonth)).map((transaction) => transaction.recurringMonth);
+    const savedProcessedMonths = Array.isArray(saved.processedRecurringMonths) ? saved.processedRecurringMonths.filter((month) => /^\d{4}-\d{2}$/.test(month)) : [];
     return {
       companyName: typeof saved.companyName === "string" && saved.companyName.trim() ? saved.companyName.trim() : DEFAULT_STATE.companyName,
       startingCapital: Number(saved.startingCapital) >= 0 ? Number(saved.startingCapital) : DEFAULT_STATE.startingCapital,
       activeMonth: /^\d{4}-\d{2}$/.test(saved.activeMonth) ? saved.activeMonth : DEFAULT_STATE.activeMonth,
       transactions,
-      monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord).map((record) => normalizeMonthlyRecord(record, transactions)) : []
+      monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord).map((record) => normalizeMonthlyRecord(record, transactions)) : [],
+      processedRecurringMonths: [...new Set([...savedProcessedMonths, ...inferredProcessedMonths])]
     };
   } catch {
     return structuredClone(DEFAULT_STATE);
@@ -268,6 +272,22 @@ function persistAndRender() {
   renderApplication();
 }
 
+function refreshClosedMonth(monthKey) {
+  const historyIndex = state.monthlyHistory.findIndex((record) => record.month === monthKey);
+  if (historyIndex === -1) return;
+  const monthTransactions = state.transactions.filter((transaction) => transaction.accountingMonth === monthKey);
+  const totals = calculateTotals(monthTransactions);
+  state.monthlyHistory[historyIndex] = {
+    ...state.monthlyHistory[historyIndex],
+    revenue: totals.revenue,
+    expenses: totals.expenses,
+    profit: totals.profit,
+    revenueByCategory: calculateCategoryBreakdown(monthTransactions, "income"),
+    expenseByCategory: calculateCategoryBreakdown(monthTransactions, "expense"),
+    updatedAt: new Date().toISOString()
+  };
+}
+
 function openTransactionDialog(transaction = null) {
   dom.transactionForm.reset();
   document.querySelector("#transaction-dialog-title").textContent = transaction ? "Edit Transaction" : "Add Transaction";
@@ -299,6 +319,7 @@ function saveTransaction(event) {
   };
   if (id) state.transactions = state.transactions.map((item) => item.id === id ? transaction : item);
   else state.transactions.push(transaction);
+  refreshClosedMonth(transaction.accountingMonth);
   persistAndRender();
   dom.transactionDialog.close();
   showToast(id ? "Transaction updated." : "Transaction added.");
@@ -308,23 +329,23 @@ function deleteTransaction(id) {
   const transaction = state.transactions.find((item) => item.id === id);
   if (!transaction || !window.confirm(`Delete “${transaction.description}”?`)) return;
   state.transactions = state.transactions.filter((item) => item.id !== id);
+  refreshClosedMonth(transaction.accountingMonth);
   persistAndRender();
   showToast("Transaction deleted.");
 }
 
 function processMonthlyExpenses() {
   const monthKey = state.activeMonth;
-  const existingDescriptions = new Set(state.transactions.filter((transaction) => transaction.recurringMonth === monthKey).map((transaction) => transaction.description));
-  const pending = RECURRING_EXPENSES.filter((expense) => !existingDescriptions.has(expense.description));
-  if (!pending.length) {
+  if (state.processedRecurringMonths.includes(monthKey)) {
     showToast(`Monthly expenses for ${formatMonth(monthKey)} have already been processed.`, true);
     return;
   }
-  if (!window.confirm(`Post ${pending.length} recurring expenses totaling ${formatCurrency(pending.reduce((sum, item) => sum + item.amount, 0))} for ${formatMonth(monthKey)}?`)) return;
+  if (!window.confirm(`Post ${RECURRING_EXPENSES.length} recurring expenses totaling ${formatCurrency(RECURRING_EXPENSES.reduce((sum, item) => sum + item.amount, 0))} for ${formatMonth(monthKey)}?`)) return;
   const date = `${monthKey}-01`;
-  pending.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", accountingMonth: monthKey, recurringMonth: monthKey, notes: "Monthly recurring expense", createdAt: `${new Date().toISOString()}-${index}` }));
+  RECURRING_EXPENSES.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", accountingMonth: monthKey, recurringMonth: monthKey, notes: "Monthly recurring expense", createdAt: `${new Date().toISOString()}-${index}` }));
+  state.processedRecurringMonths.push(monthKey);
   persistAndRender();
-  showToast(`${pending.length} monthly expenses processed.`);
+  showToast(`${RECURRING_EXPENSES.length} monthly expenses processed.`);
 }
 
 function closeMonth() {
