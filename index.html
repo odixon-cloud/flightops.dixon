@@ -29,7 +29,7 @@
       <section class="page active" id="dashboard-page" data-page-panel="dashboard" aria-labelledby="dashboard-title">
         <header class="page-header">
           <div><p class="eyebrow">Operations overview</p><h1 id="dashboard-title">Dashboard</h1><p class="page-description">Financial position and current operating performance.</p></div>
-          <div class="period-chip"><span>Operating period</span><strong id="current-period">—</strong></div>
+          <div class="period-control"><div class="period-chip"><span>Current Month</span><strong id="current-period">—</strong></div><button class="button button--secondary" type="button" id="close-month-button">Close Month</button></div>
         </header>
 
         <div class="metric-grid" aria-label="Financial summary">
@@ -53,7 +53,7 @@
         </header>
 
         <section class="panel">
-          <div class="ledger-summary"><span><strong id="ledger-count">0</strong> transactions</span><span>Current balance <strong id="ledger-balance">$0.00</strong></span></div>
+          <div class="ledger-summary"><div class="ledger-filter"><label for="ledger-filter">Display</label><select id="ledger-filter"><option value="current">Current Month</option><option value="all">All Transactions</option><option value="archived">Archived Months</option></select></div><span><strong id="ledger-count">0</strong> transactions shown</span><span>Company cash <strong id="ledger-balance">$0.00</strong></span></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="number-cell">Amount</th><th class="number-cell">Balance</th><th class="action-cell">Actions</th></tr></thead>
@@ -70,6 +70,7 @@
           <div class="table-wrap">
             <table><thead><tr><th>Month</th><th class="number-cell">Revenue</th><th class="number-cell">Expenses</th><th class="number-cell">Profit/Loss</th></tr></thead><tbody id="reports-table-body"></tbody></table>
           </div>
+          <div class="empty-state" id="reports-empty" hidden><span class="empty-state-mark" aria-hidden="true">RPT</span><h2>No closed months</h2><p>Completed accounting periods will appear here after you close a month.</p></div>
         </section>
       </section>
 

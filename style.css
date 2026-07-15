@@ -241,6 +241,12 @@ h3 {
   background: var(--surface);
 }
 
+.period-control {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
 .period-chip span,
 .period-chip strong {
   display: block;
@@ -497,6 +503,34 @@ h3 {
 
 .ledger-summary strong {
   color: var(--text);
+}
+
+.ledger-filter {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ledger-filter label {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ledger-filter select {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: 0;
+  padding: 8px 30px 8px 10px;
+  background: #09141e;
+  color: var(--text);
+  font-size: 10px;
+}
+
+.ledger-filter select:focus {
+  border-color: var(--accent);
 }
 
 .table-wrap {
@@ -904,6 +938,11 @@ tbody tr:hover {
     width: 100%;
   }
 
+  .period-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .metric-grid {
     grid-template-columns: 1fr;
   }
@@ -923,6 +962,11 @@ tbody tr:hover {
   .ledger-summary {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .ledger-filter {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

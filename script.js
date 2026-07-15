@@ -4,7 +4,9 @@ const STORAGE_KEY = "flightops-pro-accounting-v2";
 const DEFAULT_STATE = {
   companyName: "Dixon Air Cargo",
   startingCapital: 2500000,
-  transactions: []
+  activeMonth: currentMonthKey(),
+  transactions: [],
+  monthlyHistory: []
 };
 
 const RECURRING_EXPENSES = [
@@ -42,6 +44,16 @@ function currentMonthKey() {
   return localDateString().slice(0, 7);
 }
 
+function nextMonthKey(monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const nextMonth = new Date(year, month, 1);
+  return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function defaultDateForActiveMonth() {
+  return state.activeMonth === currentMonthKey() ? localDateString() : `${state.activeMonth}-01`;
+}
+
 function createId() {
   return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -75,6 +87,10 @@ function normalizeTransaction(transaction) {
   };
 }
 
+function isValidMonthlyRecord(record) {
+  return record && /^\d{4}-\d{2}$/.test(record.month) && Number.isFinite(Number(record.revenue)) && Number.isFinite(Number(record.expenses)) && Number.isFinite(Number(record.profit));
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -82,7 +98,9 @@ function loadState() {
     return {
       companyName: typeof saved.companyName === "string" && saved.companyName.trim() ? saved.companyName.trim() : DEFAULT_STATE.companyName,
       startingCapital: Number(saved.startingCapital) >= 0 ? Number(saved.startingCapital) : DEFAULT_STATE.startingCapital,
-      transactions: saved.transactions.filter(isValidTransaction).map(normalizeTransaction)
+      activeMonth: /^\d{4}-\d{2}$/.test(saved.activeMonth) ? saved.activeMonth : currentMonthKey(),
+      transactions: saved.transactions.filter(isValidTransaction).map(normalizeTransaction),
+      monthlyHistory: Array.isArray(saved.monthlyHistory) ? saved.monthlyHistory.filter(isValidMonthlyRecord) : []
     };
   } catch {
     return structuredClone(DEFAULT_STATE);
@@ -144,7 +162,7 @@ function showPage(pageName, updateHash = true) {
 }
 
 function renderDashboard() {
-  const monthKey = currentMonthKey();
+  const monthKey = state.activeMonth;
   const monthlyTransactions = state.transactions.filter((transaction) => transaction.date.startsWith(monthKey));
   const monthly = calculateTotals(monthlyTransactions);
   const lifetime = calculateTotals(state.transactions);
@@ -169,7 +187,14 @@ function renderDashboard() {
 }
 
 function renderLedger() {
-  const transactions = sortNewestFirst(state.transactions);
+  const filter = document.querySelector("#ledger-filter").value;
+  const archivedMonths = new Set(state.monthlyHistory.map((record) => record.month));
+  const filteredTransactions = state.transactions.filter((transaction) => {
+    if (filter === "current") return transaction.date.startsWith(state.activeMonth);
+    if (filter === "archived") return archivedMonths.has(transaction.date.slice(0, 7));
+    return true;
+  });
+  const transactions = sortNewestFirst(filteredTransactions);
   const runningBalances = getRunningBalances();
   const currentBalance = state.startingCapital + calculateTotals(state.transactions).profit;
   document.querySelector("#ledger-count").textContent = transactions.length;
@@ -187,10 +212,12 @@ function renderLedger() {
 }
 
 function renderReports() {
-  const monthKey = currentMonthKey();
-  const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
-  const profitClass = totals.profit > 0 ? "profit-positive" : totals.profit < 0 ? "profit-negative" : "";
-  dom.reportsBody.innerHTML = `<tr><td><strong>${formatMonth(monthKey)}</strong></td><td class="number-cell profit-positive">${formatCurrency(totals.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(totals.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(totals.profit)}</strong></td></tr>`;
+  const history = [...state.monthlyHistory].sort((a, b) => b.month.localeCompare(a.month));
+  document.querySelector("#reports-empty").hidden = history.length > 0;
+  dom.reportsBody.innerHTML = history.map((record) => {
+    const profitClass = record.profit > 0 ? "profit-positive" : record.profit < 0 ? "profit-negative" : "";
+    return `<tr><td><strong>${formatMonth(record.month)}</strong></td><td class="number-cell profit-positive">${formatCurrency(record.revenue)}</td><td class="number-cell profit-negative">${formatCurrency(record.expenses)}</td><td class="number-cell ${profitClass}"><strong>${formatCurrency(record.profit)}</strong></td></tr>`;
+  }).join("");
 }
 
 function renderSettings() {
@@ -216,7 +243,7 @@ function openTransactionDialog(transaction = null) {
   document.querySelector("#transaction-dialog-title").textContent = transaction ? "Edit Transaction" : "Add Transaction";
   document.querySelector("#transaction-id").value = transaction?.id || "";
   document.querySelector("#transaction-description").value = transaction?.description || "";
-  document.querySelector("#transaction-date").value = transaction?.date || localDateString();
+  document.querySelector("#transaction-date").value = transaction?.date || defaultDateForActiveMonth();
   document.querySelector("#transaction-category").value = transaction?.category || "Revenue";
   document.querySelector("#transaction-amount").value = transaction?.amount || "";
   document.querySelector("#transaction-notes").value = transaction?.notes || "";
@@ -254,7 +281,7 @@ function deleteTransaction(id) {
 }
 
 function processMonthlyExpenses() {
-  const monthKey = currentMonthKey();
+  const monthKey = state.activeMonth;
   const existingDescriptions = new Set(state.transactions.filter((transaction) => transaction.recurringMonth === monthKey).map((transaction) => transaction.description));
   const pending = RECURRING_EXPENSES.filter((expense) => !existingDescriptions.has(expense.description));
   if (!pending.length) {
@@ -266,6 +293,25 @@ function processMonthlyExpenses() {
   pending.forEach((expense, index) => state.transactions.push({ id: createId(), ...expense, date, type: "expense", recurringMonth: monthKey, createdAt: `${new Date().toISOString()}-${index}` }));
   persistAndRender();
   showToast(`${pending.length} monthly expenses processed.`);
+}
+
+function closeMonth() {
+  const monthKey = state.activeMonth;
+  const totals = calculateTotals(state.transactions.filter((transaction) => transaction.date.startsWith(monthKey)));
+  const confirmation = `Close ${formatMonth(monthKey)}?\n\nRevenue: ${formatCurrency(totals.revenue)}\nExpenses: ${formatCurrency(totals.expenses)}\nProfit/Loss: ${formatCurrency(totals.profit)}`;
+  if (!window.confirm(confirmation)) return;
+
+  state.monthlyHistory = state.monthlyHistory.filter((record) => record.month !== monthKey);
+  state.monthlyHistory.push({
+    month: monthKey,
+    revenue: totals.revenue,
+    expenses: totals.expenses,
+    profit: totals.profit,
+    closedAt: new Date().toISOString()
+  });
+  state.activeMonth = nextMonthKey(monthKey);
+  persistAndRender();
+  showToast(`${formatMonth(monthKey)} closed. ${formatMonth(state.activeMonth)} is now active.`);
 }
 
 function saveSettingsAutomatically() {
@@ -291,6 +337,8 @@ document.querySelectorAll("[data-open-page]").forEach((button) => button.addEven
 window.addEventListener("hashchange", () => showPage(window.location.hash.slice(1) || "dashboard", false));
 document.querySelector("#add-transaction-button").addEventListener("click", () => openTransactionDialog());
 document.querySelector("#process-expenses-button").addEventListener("click", processMonthlyExpenses);
+document.querySelector("#close-month-button").addEventListener("click", closeMonth);
+document.querySelector("#ledger-filter").addEventListener("change", renderLedger);
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 dom.transactionForm.addEventListener("submit", saveTransaction);
 dom.settingsForm.addEventListener("change", saveSettingsAutomatically);
